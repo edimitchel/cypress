@@ -33,6 +33,7 @@ describe('lib/project-e2e', () => {
 
     sinon.stub(scaffold, 'isNewProject').resolves(false)
     sinon.stub(runEvents, 'execute').resolves()
+    sinon.stub(settings, 'configFile').returns('cypress.json')
 
     return settings.read(this.todosPath).then((obj = {}) => {
       ({ projectId: this.projectId } = obj)
