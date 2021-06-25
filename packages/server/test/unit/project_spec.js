@@ -39,7 +39,7 @@ describe('lib/project-e2e', () => {
     })
 
     sinon.stub(runEvents, 'execute').resolves()
-    sinon.stub(fs, 'readdirSync').returns(['cypress.config.js'])
+    sinon.stub(fs, 'readdirSync').returns(['cypress.json'])
 
     return settings.read(this.todosPath).then((obj = {}) => {
       ({ projectId: this.projectId } = obj)
@@ -55,7 +55,7 @@ describe('lib/project-e2e', () => {
   })
 
   afterEach(function () {
-    Fixtures.remove()
+    // Fixtures.remove()
 
     if (this.project) {
       this.project.close()
@@ -879,7 +879,7 @@ This option will not have an effect in Some-other-name. Tests that rely on web s
         projectRoot: this.todosPath,
       }
 
-      return settings.write(this.idsPath, { port: 2020 })
+      return settings.write(this.idsPath, { port: 2020 }, { configFile: 'cypress.json' })
     })
 
     it('returns fully qualified url when spec exists', function () {
