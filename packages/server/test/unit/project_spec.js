@@ -55,7 +55,7 @@ describe('lib/project-e2e', () => {
   })
 
   afterEach(function () {
-    // Fixtures.remove()
+    Fixtures.remove()
 
     if (this.project) {
       this.project.close()
