@@ -1,10 +1,12 @@
 import Debug from 'debug'
 import path from 'path'
 
+import scaffold from './scaffold'
 import settings from './util/settings'
 import errors from './errors'
 import { fs } from './util/fs'
 import { escapeFilenameInUrl } from './util/escape_filename'
+import { Cfg } from './project-base'
 
 const debug = Debug('cypress:server:project_utils')
 
@@ -117,8 +119,8 @@ export const checkSupportFile = async ({
   supportFile,
   configFile,
 }: {
-  supportFile: string | boolean
-  configFile: string | boolean
+  supportFile?: string | boolean
+  configFile?: string | boolean
 }) => {
   if (supportFile && typeof supportFile === 'string') {
     const found = await fs.pathExists(supportFile)
@@ -129,4 +131,27 @@ export const checkSupportFile = async ({
   }
 
   return
+}
+
+/**
+ * See if a project is using Cypress for the first time.
+ * @returns {Promise<Boolean>} is the project opening Cypress for the first time?
+ */
+export const isNewProject = async (cfg: Cfg): Promise<boolean> => {
+  if (cfg.isTextTerminal) {
+    return false
+  }
+
+  // decide if new project by asking scaffold
+  // and looking at previously saved user state
+  if (!cfg.integrationFolder) {
+    throw new Error('Missing integration folder')
+  }
+
+  const untouchedScaffold = scaffold.isNewProject(cfg)
+  const userHasSeenBanner = cfg.state?.showedNewProjectBanner || false
+
+  debug(`untouched scaffold ${untouchedScaffold} banner closed ${userHasSeenBanner}`)
+
+  return untouchedScaffold && !userHasSeenBanner
 }

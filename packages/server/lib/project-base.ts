@@ -31,7 +31,9 @@ import preprocessor from './plugins/preprocessor'
 import { RunnerType, SpecsStore } from './specs-store'
 import { createRoutes as createE2ERoutes } from './routes'
 import { createRoutes as createCTRoutes } from '@packages/server-ct/src/routes-ct'
-import { checkSupportFile } from './project_utils'
+import { checkSupportFile, isNewProject } from './project_utils'
+
+export type ConfigResolvedFrom = 'plugin' | 'default'
 
 // Cannot just use RuntimeConfigOptions as is because some types are not complete.
 // or places in this file modify existing types, adding additional keys dynamically.
@@ -39,14 +41,17 @@ import { checkSupportFile } from './project_utils'
 // and used when creating a project.
 // TODO: Figure out how to type this better.
 type ReceivedCypressOptions =
-  Pick<Cypress.RuntimeConfigOptions, 'namespace' | 'socketIoCookie' | 'configFile'>
-  & Pick<Cypress.ResolvedConfigOptions, 'screenshotsFolder' | 'supportFile'>
+  Partial<Pick<Cypress.RuntimeConfigOptions, 'namespace' | 'report' | 'socketIoCookie' | 'configFile' | 'isTextTerminal' | 'isNewProject'>>
+  & Partial<Pick<Cypress.ResolvedConfigOptions, 'reporter' | 'reporterOptions' | 'screenshotsFolder' | 'supportFile' | 'integrationFolder'>>
 
 export interface Cfg extends ReceivedCypressOptions {
-  reporter: 'spec' | 'dot' | string
-  report: boolean
   projectRoot: string
-  reporterOptions: Record<string, any>
+  state: {
+    [key: string]: {
+      value: any
+      from: ConfigResolvedFrom
+    }
+  }
 
   [key: string]: any
 }
@@ -71,14 +76,13 @@ interface Options {
 const localCwd = cwd()
 
 const debug = Debug('cypress:server:project')
-const debugScaffold = Debug('cypress:server:scaffold')
 
 type StartWebsocketOptions = Pick<Cfg, 'socketIoCookie' | 'namespace' | 'screenshotsFolder' | 'report' | 'reporter' | 'reporterOptions' | 'projectRoot'>
 
 export class ProjectBase<TServer extends ServerE2E | ServerCt> extends EE {
   protected watchers: Watchers
   protected options: Options
-  protected _cfg?: Cfg
+  protected _cfg: Cfg
   protected _server?: TServer
   protected _automation?: Automation
   private _recordTests?: any = null
@@ -126,6 +130,11 @@ export class ProjectBase<TServer extends ServerE2E | ServerCt> extends EE {
       onWarning () {},
       onSettingsChanged: false,
       ...options,
+    }
+
+    this._cfg = {
+      projectRoot,
+      state: {},
     }
   }
 
@@ -691,37 +700,17 @@ export class ProjectBase<TServer extends ServerE2E | ServerCt> extends EE {
   // with additional object "state" which are transient things like
   // window width and height, DevTools open or not, etc.
   async getConfig (): Promise<Cfg> {
-    if (this._cfg) {
-      debug('project has config %o', this._cfg)
+    debug('project has config %o', this._cfg)
 
-      return Promise.resolve(this._cfg)
-    }
+    const cfg = await config.get(this.projectRoot, this.options)
 
-    const setNewProject = async (cfg) => {
-      if (cfg.isTextTerminal) {
-        return
-      }
+    cfg.isNewProject = await isNewProject(this.cfg)
 
-      // decide if new project by asking scaffold
-      // and looking at previously saved user state
-      if (!cfg.integrationFolder) {
-        throw new Error('Missing integration folder')
-      }
+    const cfgWithSaved = await this._setSavedState(cfg)
 
-      const untouchedScaffold = await this.determineIsNewProject(cfg)
-      const userHasSeenBanner = _.get(cfg, 'state.showedNewProjectBanner', false)
+    this._cfg = cfgWithSaved
 
-      debugScaffold(`untouched scaffold ${untouchedScaffold} banner closed ${userHasSeenBanner}`)
-      cfg.isNewProject = untouchedScaffold && !userHasSeenBanner
-    }
-
-    const theCfg = await config.get(this.projectRoot, this.options)
-
-    await setNewProject(theCfg)
-
-    const cfgWithSaved = await this._setSavedState(theCfg)
-
-    return cfgWithSaved
+    return this._cfg
   }
 
   // Saved state
